@@ -11,6 +11,8 @@
     "build": "tsc && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && rsbuild build && node config/remote-manifest-entry.mjs",
     "test": "rstest",
     "test:coverage": "rstest --coverage",
+    "typecheck": "tsc --noEmit",
+    "hooks:install": "node scripts/install-hooks.mjs",
     "preview": "rsbuild preview",
     "lint": "eslint ."
   },

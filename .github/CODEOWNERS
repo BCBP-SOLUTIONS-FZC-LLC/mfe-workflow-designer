@@ -1,0 +1,10 @@
+# Default: every file requires review from the workflow designer team.
+* @BCBP-SOLUTIONS-FZC-LLC/mfe-workflow-designer
+
+# Workflow changes require explicit sign-off.
+.github/workflows/ @BCBP-SOLUTIONS-FZC-LLC/mfe-workflow-designer
+.github/dependabot.yml @BCBP-SOLUTIONS-FZC-LLC/mfe-workflow-designer
+
+# Image and static-host config.
+Dockerfile @BCBP-SOLUTIONS-FZC-LLC/mfe-workflow-designer
+nginx/ @BCBP-SOLUTIONS-FZC-LLC/mfe-workflow-designer

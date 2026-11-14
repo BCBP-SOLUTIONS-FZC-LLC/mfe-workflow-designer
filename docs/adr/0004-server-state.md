@@ -10,7 +10,7 @@ The catalogue is server state for this remote, backed by `StudioRepository`. Tan
 
 Banner notices are catalog keys. The layout translates them. Stored version notes stay sentences because they are part of the workflow record.
 
-Zustand holds client UI state: list filters, the blank-workflow form, header search, the starter preview, and the open module. The editor draft stays beside the canvas because it has to flush in the same turn as a sign-in redirect.
+Zustand holds client UI state: list filters, the blank-workflow form, header search, the theme picker, the starter preview, the open module, the open diagram, and the version diff. The diagram store resets when the open workflow changes, and a sign-in redirect reads that store before the page unloads.
 
 When a workflow API exists, `StudioRepository` gains an HTTP implementation and the query key stays the same.
 
