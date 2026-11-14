@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+@config '../tailwind.config.js';
+@plugin "daisyui" {
+  themes: all;
+}
+@import './theme/aura.css';
+@import './theme/daisyAuraBridge.css';
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background-color: var(--aura-canvas);
+    color: var(--aura-text);
+    font-family: 'Geist Sans', Geist, Inter, system-ui, sans-serif;
+  }
+
+  #app {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+.wf-canvas,
+.wf-canvas .djs-container {
+  height: 100%;
+  background: var(--aura-surface);
+}
+
+.wf-canvas .djs-palette {
+  display: none;
+}
+
+.wf-pin {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e11d48;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px white;
+}

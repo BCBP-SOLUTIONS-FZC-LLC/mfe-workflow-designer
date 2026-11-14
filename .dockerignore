@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+.env
+.env.*
+*.local
+node_modules
+dist
+coverage
+.coverage
+test
+.vscode
+.idea
+*.md
+*.log
