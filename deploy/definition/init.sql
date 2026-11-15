@@ -1,0 +1,2 @@
+CREATE ROLE workflow_app WITH LOGIN PASSWORD 'workflow_app' NOSUPERUSER NOBYPASSRLS;
+GRANT CONNECT ON DATABASE workflow TO workflow_app;

@@ -22,7 +22,9 @@
     "redirectPath": "/auth/callback",
     "signInUrl": "http://localhost:5001/"
   },
-  "flags": {},
+  "flags": {
+    "definition_service": false
+  },
   "remotes": {
     "killSwitch": [],
     "loadTimeoutMs": 10000,

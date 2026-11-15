@@ -1,0 +1,65 @@
+# Local Definition Service 0.2.0 (image sha-a206963 until the tag exists).
+# The image is linux/amd64. On Apple Silicon, Docker runs it with emulation.
+# Order: database and Valkey, then migrate, then the server. The server does not migrate on start.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: workflow_migrator
+      POSTGRES_PASSWORD: workflow_migrator
+      POSTGRES_DB: workflow
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/01-app-role.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U workflow_migrator -d workflow']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8-alpine
+
+  catalog:
+    image: node:22-alpine
+    command: ['node', '/mock/catalog-mock.mjs']
+    volumes:
+      - ./catalog-mock.mjs:/mock/catalog-mock.mjs:ro
+
+  migrate:
+    image: ghcr.io/bcbp-solutions-fzc-llc/workflow-definition-service:sha-a206963
+    platform: linux/amd64
+    command: ['migrate']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MIGRATION_DATABASE_URL: postgres://workflow_migrator:workflow_migrator@postgres:5432/workflow?sslmode=disable
+      SYSTEM_DATABASE_URL: postgres://workflow_migrator:workflow_migrator@postgres:5432/workflow?sslmode=disable
+      DATABASE_URL: postgres://workflow_app:workflow_app@postgres:5432/workflow?sslmode=disable
+    restart: 'no'
+
+  definition:
+    image: ghcr.io/bcbp-solutions-fzc-llc/workflow-definition-service:sha-a206963
+    platform: linux/amd64
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_started
+      catalog:
+        condition: service_started
+    ports:
+      - '8080:8080'
+    environment:
+      MIGRATION_DATABASE_URL: postgres://workflow_migrator:workflow_migrator@postgres:5432/workflow?sslmode=disable
+      SYSTEM_DATABASE_URL: postgres://workflow_migrator:workflow_migrator@postgres:5432/workflow?sslmode=disable
+      DATABASE_URL: postgres://workflow_app:workflow_app@postgres:5432/workflow?sslmode=disable
+      VALKEY_ADDR: valkey:6379
+      CATALOG_ADMIN_BASE_URL: http://catalog:8081
+      ORG_MEMBERSHIP_BASE_URL: ''
+      EXECUTION_SERVICE_URL: ''
+      OPENBAO_ADDR: ''
+      APP_ENV: dev
+      HTTP_PORT: '8080'
+      METRICS_PORT: '9091'
+      TENANT_PURGE_ENABLED: 'false'

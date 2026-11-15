@@ -215,6 +215,8 @@
   "notice.starterDraft": "Save a starter from a published version.",
   "notice.savedStarter": "Saved {name} as a starter.",
   "notice.modulePublished": "Published a new module version.",
+  "notice.serviceRefused": "{code}: {detail}",
+  "notice.definitionUnavailable": "The definition service did not answer.",
 
   "workflow.untitled": "Untitled workflow",
   "workflow.uploaded": "Uploaded workflow",

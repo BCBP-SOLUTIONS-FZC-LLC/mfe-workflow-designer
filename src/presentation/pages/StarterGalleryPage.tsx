@@ -46,8 +46,12 @@ export default function StarterGalleryPage() {
                         <PrimaryButton
                           disabled={readOnly}
                           onClick={() => {
-                            const id = createFromStarter(starter.id, starter.name)
-                            navigate(`${base}/${id}/editor`)
+                            const created = createFromStarter(starter.id, starter.name)
+                            const open = (id: string) => {
+                              if (id) navigate(`${base}/${id}/editor`)
+                            }
+                            if (typeof created === 'string') open(created)
+                            else void created.then(open)
                           }}
                         >
                           {t('starters.useNamed', { name: starter.name })}

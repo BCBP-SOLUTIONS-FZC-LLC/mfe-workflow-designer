@@ -6,9 +6,13 @@ import { notifyManager } from '@tanstack/query-core'
 notifyManager.setScheduler((callback) => {
   callback()
 })
+import { tryGetConfig } from '@bcbp-solutions-fzc-llc/frontend-sdk/config'
 import { useBeforeAuthRedirect } from '@bcbp-solutions-fzc-llc/frontend-sdk/react'
 import { recordFromReducer, recordReducerError, recordWorkflowAction } from '../../infrastructure/telemetry/metrics'
 import { studioRepository } from '../../infrastructure/storage/studioStore'
+import { DefinitionError } from '../../infrastructure/definition/client'
+import { emptyCatalogue } from '../../infrastructure/definition/mapCatalogue'
+import { loadDefinitionCatalogue, runDefinitionAction } from './definitionSession'
 import { credentialFor, workflowReducer, type Action } from '../../application/commands/reducer'
 import { acceptedUploadId, assessExport, type ExportAssessment } from '../../application/use-cases/catalogueActions'
 import { editingVersion, type AppState, type NodeConfig, type Notice, type SecureCredential, type Workflow } from '../../domain/entities/types'
@@ -27,10 +31,10 @@ export type WorkflowApi = {
   reloadGeneration: Record<string, number>
   dismissNotice: () => void
   notify: (notice: Notice) => void
-  createBlank: (input: BlankInput) => string
-  createFromStarter: (starterId: string, name?: string) => string
-  upload: (name: string, xml: string) => string
-  cloneWorkflow: (workflowId: string) => string
+  createBlank: (input: BlankInput) => string | Promise<string>
+  createFromStarter: (starterId: string, name?: string) => string | Promise<string>
+  upload: (name: string, xml: string) => string | Promise<string>
+  cloneWorkflow: (workflowId: string) => string | Promise<string>
   archiveWorkflow: (workflowId: string) => void
   saveDraft: (workflowId: string, xml: string, nodes: NodeConfig[]) => void
   keepDraft: (workflowId: string, xml: string, nodes: NodeConfig[]) => void
@@ -48,19 +52,41 @@ export type WorkflowApi = {
 
 const WorkflowContext = createContext<WorkflowApi | null>(null)
 
+function definitionServiceEnabled(): boolean {
+  const flags = tryGetConfig()?.flags as Record<string, unknown> | undefined
+  return flags?.definition_service === true
+}
+
+function createdId(before: AppState, after: AppState): string {
+  const known = new Set(before.workflows.map((workflow) => workflow.id))
+  return after.workflows.find((workflow) => !known.has(workflow.id))?.id ?? ''
+}
+
 function CatalogueProvider({ children }: { children: ReactNode }) {
+  const remote = definitionServiceEnabled()
   const queryClient = useQueryClient()
-  const [seed] = useState(() => studioRepository.load())
+  const [seed] = useState(() => (remote ? emptyCatalogue() : studioRepository.load()))
   const catalogue = useQuery({
     queryKey: CATALOGUE_KEY,
-    queryFn: () => studioRepository.load(),
+    queryFn: async () => {
+      if (!remote) return studioRepository.load()
+      try {
+        return await loadDefinitionCatalogue()
+      } catch (error) {
+        const notice = error instanceof DefinitionError
+          ? { key: 'notice.serviceRefused', vars: { code: error.problem.code, detail: error.problem.detail || error.problem.code } }
+          : { key: 'notice.definitionUnavailable' as const }
+        return emptyCatalogue(notice)
+      }
+    },
     initialData: seed,
-    staleTime: Infinity,
-    refetchOnMount: false,
+    staleTime: remote ? 0 : Infinity,
+    refetchOnMount: remote ? 'always' : false,
     refetchOnWindowFocus: false,
   })
   const state = catalogue.data
   const stateRef = useRef(state)
+  const chain = useRef(Promise.resolve())
   const send = useCallback((action: Action) => {
     const next = workflowReducer(stateRef.current, action)
     stateRef.current = next
@@ -79,10 +105,33 @@ function CatalogueProvider({ children }: { children: ReactNode }) {
     },
     [send],
   )
-  useBeforeAuthRedirect(() => studioRepository.save(stateRef.current))
+  const dispatch = useCallback(
+    (action: Action) => {
+      if (!remote) {
+        sendTracked(action)
+        return Promise.resolve(stateRef.current)
+      }
+      const run = chain.current.then(async () => {
+        const next = await runDefinitionAction(stateRef.current, action)
+        stateRef.current = next
+        queryClient.setQueryData<AppState>(CATALOGUE_KEY, next)
+        return next
+      })
+      chain.current = run.then(
+        () => undefined,
+        () => undefined,
+      )
+      return run
+    },
+    [queryClient, remote, sendTracked],
+  )
+  useBeforeAuthRedirect(() => {
+    if (!remote) studioRepository.save(stateRef.current)
+  })
   useEffect(() => {
-    studioRepository.save(state)
-  }, [state])
+    stateRef.current = state
+    if (!remote) studioRepository.save(state)
+  }, [remote, state])
   const now = () => new Date().toISOString()
 
   const api = useMemo<WorkflowApi>(() => {
@@ -93,45 +142,102 @@ function CatalogueProvider({ children }: { children: ReactNode }) {
       notice: state.notice,
       conflictWorkflowId: state.conflictWorkflowId,
       reloadGeneration: state.reloadGeneration,
-      dismissNotice: () => sendTracked({ type: 'dismissNotice' }),
-      notify: (notice) => sendTracked({ type: 'notify', notice }),
+      dismissNotice: () => {
+        void dispatch({ type: 'dismissNotice' })
+      },
+      notify: (notice) => {
+        void dispatch({ type: 'notify', notice })
+      },
       createBlank: (input) => {
-        const id = `wf-${state.seq}`
-        sendTracked({ type: 'createBlank', ...input, now: now() })
-        return id
+        if (!remote) {
+          const id = `wf-${state.seq}`
+          sendTracked({ type: 'createBlank', ...input, now: now() })
+          return id
+        }
+        const before = stateRef.current
+        return dispatch({ type: 'createBlank', ...input, now: now() }).then((after) => createdId(before, after))
       },
       createFromStarter: (starterId, name = '') => {
-        const id = `wf-${state.seq}`
-        sendTracked({ type: 'createFromStarter', starterId, name, now: now() })
-        return id
+        if (!remote) {
+          const id = `wf-${state.seq}`
+          sendTracked({ type: 'createFromStarter', starterId, name, now: now() })
+          return id
+        }
+        const before = stateRef.current
+        return dispatch({ type: 'createFromStarter', starterId, name, now: now() }).then((after) => createdId(before, after))
       },
       upload: (name, xml) => {
-        const id = acceptedUploadId(state.seq, xml)
-        sendTracked({ type: 'upload', name, xml, now: now() })
-        return id
+        if (!remote) {
+          const id = acceptedUploadId(state.seq, xml)
+          sendTracked({ type: 'upload', name, xml, now: now() })
+          return id
+        }
+        const before = stateRef.current
+        return dispatch({ type: 'upload', name, xml, now: now() }).then((after) => createdId(before, after))
       },
       cloneWorkflow: (workflowId) => {
-        const id = `wf-${state.seq}`
-        sendTracked({ type: 'clone', workflowId, now: now() })
-        return id
+        if (!remote) {
+          const id = `wf-${state.seq}`
+          sendTracked({ type: 'clone', workflowId, now: now() })
+          return id
+        }
+        const before = stateRef.current
+        return dispatch({ type: 'clone', workflowId, now: now() }).then((after) => createdId(before, after))
       },
-      archiveWorkflow: (workflowId) => sendTracked({ type: 'archive', workflowId }),
-      saveDraft: (workflowId, xml, nodes) => sendTracked({ type: 'saveDraft', workflowId, xml, nodes, now: now() }),
+      archiveWorkflow: (workflowId) => {
+        void dispatch({ type: 'archive', workflowId })
+      },
+      saveDraft: (workflowId, xml, nodes) => {
+        void dispatch({ type: 'saveDraft', workflowId, xml, nodes, now: now() })
+      },
       keepDraft: (workflowId, xml, nodes) => {
+        if (remote) {
+          const workflow = stateRef.current.workflows.find((item) => item.id === workflowId)
+          const record = workflow?.versions.find((version) => version.id === workflow.draftVersionId)?.recordVersion ?? workflow?.serverRecordVersion
+          if (!workflow || record == null) return
+          void fetch(`/api/v1/workflows/${workflowId}/draft`, {
+            method: 'PUT',
+            keepalive: true,
+            headers: {
+              accept: 'application/json',
+              'content-type': 'application/json',
+              'Idempotency-Key': crypto.randomUUID(),
+            },
+            body: JSON.stringify({
+              bpmn_xml: xml,
+              name: workflow.name,
+              description: workflow.description,
+              record_version: record,
+            }),
+          })
+          return
+        }
         const action: Action = { type: 'saveDraft', workflowId, xml, nodes, now: now() }
         send(action)
         studioRepository.save(stateRef.current)
       },
-      publish: (workflowId, xml, nodes, actor) =>
-        sendTracked({ type: 'publish', workflowId, xml, nodes, actor, now: now() }),
-      reload: (workflowId) => sendTracked({ type: 'reload', workflowId, now: now() }),
-      promote: (workflowId, versionId) => sendTracked({ type: 'promote', workflowId, versionId }),
-      saveStarter: (workflowId, versionId) => sendTracked({ type: 'saveStarter', workflowId, versionId }),
-      setCredential: (workflowId, elementId, vaultRef, secret) =>
-        sendTracked({ type: 'setCredential', workflowId, elementId, vaultRef, secret }),
+      publish: (workflowId, xml, nodes, actor) => {
+        void dispatch({ type: 'publish', workflowId, xml, nodes, actor, now: now() })
+      },
+      reload: (workflowId) => {
+        void dispatch({ type: 'reload', workflowId, now: now() })
+      },
+      promote: (workflowId, versionId) => {
+        void dispatch({ type: 'promote', workflowId, versionId })
+      },
+      saveStarter: (workflowId, versionId) => {
+        void dispatch({ type: 'saveStarter', workflowId, versionId })
+      },
+      setCredential: (workflowId, elementId, vaultRef, secret) => {
+        void dispatch({ type: 'setCredential', workflowId, elementId, vaultRef, secret })
+      },
       credential: (workflowId, elementId) => credentialFor(state, workflowId, elementId),
-      publishModule: (moduleId) => sendTracked({ type: 'publishModule', moduleId, now: now() }),
-      archiveModule: (moduleId) => sendTracked({ type: 'archiveModule', moduleId }),
+      publishModule: (moduleId) => {
+        void dispatch({ type: 'publishModule', moduleId, now: now() })
+      },
+      archiveModule: (moduleId) => {
+        void dispatch({ type: 'archiveModule', moduleId })
+      },
       secrets: () => Object.values(state.credentials).map((entry) => entry.secret),
       exportDiagram: (workflowId) => {
         const workflow = state.workflows.find((item) => item.id === workflowId)
@@ -148,7 +254,7 @@ function CatalogueProvider({ children }: { children: ReactNode }) {
         return result
       },
     }
-  }, [send, sendTracked, state])
+  }, [dispatch, remote, send, sendTracked, state])
 
   return <WorkflowContext.Provider value={api}>{children}</WorkflowContext.Provider>
 }

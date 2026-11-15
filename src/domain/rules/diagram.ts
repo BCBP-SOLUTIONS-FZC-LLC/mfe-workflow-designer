@@ -190,7 +190,7 @@ export function buildDiagram(spec: DiagramSpec): string {
     .join('')
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_${esc(spec.id)}" targetNamespace="http://bcbp.local/workflows">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_${esc(spec.id)}" targetNamespace="http://bcbp.local/workflows">
   <bpmn:collaboration id="Collaboration_${esc(spec.id)}">
     <bpmn:participant id="Participant_${esc(spec.id)}" name="${esc(spec.processName)}" processRef="Process_${esc(spec.id)}" />
   </bpmn:collaboration>

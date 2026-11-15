@@ -77,8 +77,12 @@ export default function WorkflowListPage() {
                 const file = event.target.files?.[0]
                 if (!file) return
                 void file.text().then((xml) => {
-                  const id = upload(file.name.replace(/\.(bpmn|xml)$/i, ''), xml)
-                  if (id) navigate(`${base}/${id}/editor`)
+                  const created = upload(file.name.replace(/\.(bpmn|xml)$/i, ''), xml)
+                  const open = (id: string) => {
+                    if (id) navigate(`${base}/${id}/editor`)
+                  }
+                  if (typeof created === 'string') open(created)
+                  else void created.then(open)
                 })
               }}
             />
@@ -183,8 +187,12 @@ export default function WorkflowListPage() {
             className="flex flex-col gap-3"
             onSubmit={(event) => {
               event.preventDefault()
-              const id = createBlank({ name, key, stageBinding })
-              navigate(`${base}/${id}/editor`)
+              const created = createBlank({ name, key, stageBinding })
+              const open = (id: string) => {
+                if (id) navigate(`${base}/${id}/editor`)
+              }
+              if (typeof created === 'string') open(created)
+              else void created.then(open)
             }}
           >
             <TextInput label={t('list.field.name')} value={name} onChange={setName} />

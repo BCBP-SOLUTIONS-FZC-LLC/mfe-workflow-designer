@@ -18,10 +18,12 @@ All notable changes to this remote are documented here. Format follows [Keep a C
 - **Catalogue cache and client UI.** TanStack Query holds the catalogue over the repository. Zustand holds list filters, search, gallery selection, the open diagram, and the version diff. Banner notices are catalog keys translated in the layout.
 - **Local commit hook.** `.githooks/pre-commit`, installed with `npm run hooks:install`, refuses secret files, checks workflow hygiene and the Dockerfile digest pin, then typechecks.
 - **Project docs and repo hygiene.** [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md), [CONTRIBUTING.md](CONTRIBUTING.md), [VERSIONING.md](VERSIONING.md), and [docs/](docs/README.md), following `web-shell`. Also `.gitattributes`, `CODEOWNERS`, Dependabot, issue and pull request templates, a security policy, and a changelog check on pull requests.
+- **Definition Service client.** With `flags.definition_service` on, the catalogue is Definition Service 0.2.0 (`/api/v1`) instead of SDK storage. The dev server proxies that prefix and adds the gateway headers. Local dependencies are in [deploy/definition](deploy/definition). The contract is in [docs/definition-service](docs/definition-service/README.md). The flag stays off until that stack is running.
 
 ### Known gaps
 
-- **No workflow HTTP API.** The catalogue is the fixture seed plus SDK storage. A signed-out standalone reload drops created workflows because storage no-ops for the anonymous namespace.
+- **The Definition Service is off by default.** Turning `flags.definition_service` on replaces the fixture catalogue. Generated diagrams declare the Zeebe namespace and still omit `dept_id` and task definitions, so the service can refuse a palette diagram. Gateways, conditions, and Org & Membership pickers are not in the editor yet ([ADR 0005](docs/adr/0005-definition-service.md)).
+- **Signed-out storage.** With the flag off, a standalone reload drops created workflows because SDK storage no-ops for the anonymous namespace.
 - **No credential vault.** Secrets exist only in the open page's memory.
 - **No release workflow.** Nothing in this repo tags an image, signs it, or opens a GitHub Release. `package.json` stays `0.0.0` until the first tag.
 - **CI is typecheck, lint, and `npm test`.** There is no coverage percentage gate, image scan, or Playwright job ([ADR 0003](docs/adr/0003-test-runner.md)).
