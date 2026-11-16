@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_purchase_request" targetNamespace="http://bpmn.io/schema/bpmn">
+<bpmn:message id="Message_rfq" name="rfq-sent"/>
+<bpmn:message id="Message_quote" name="supplier-quote"/>
+<bpmn:message id="Message_withdrawn" name="request-withdrawn"/>
+<bpmn:error id="Error_rejected" name="Approval rejected" errorCode="approval-rejected"/>
+<bpmn:collaboration id="Collaboration_purchase">
+<bpmn:participant id="P_purchase" name="Purchase Request" processRef="Purchase_request"/>
+<bpmn:participant id="P_supplier" name="Supplier" processRef="Supplier_party"/>
+<bpmn:participant id="P_legal" name="Legal Check (called module)" processRef="Legal_check"/>
+<bpmn:messageFlow id="MsgFlow_rfq" sourceRef="Task_send_rfq" targetRef="Supplier_start" messageRef="Message_rfq"/>
+<bpmn:messageFlow id="MsgFlow_quote" sourceRef="Supplier_send_quote" targetRef="Task_receive_quote" messageRef="Message_quote"/>
+</bpmn:collaboration>
+<bpmn:process id="Purchase_request" name="Purchase Request" isExecutable="true">
+<bpmn:laneSet id="LaneSet_purchase">
+<bpmn:lane id="Lane_procurement" name="Procurement"><bpmn:extensionElements><zeebe:properties><zeebe:property name="dept_id" value="019a7c3e-0000-7000-8000-0000000d0001"/></zeebe:properties></bpmn:extensionElements><bpmn:flowNodeRef>Start_request</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_prepare</bpmn:flowNodeRef><bpmn:flowNodeRef>Boundary_chase</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_chase</bpmn:flowNodeRef><bpmn:flowNodeRef>End_chased</bpmn:flowNodeRef><bpmn:flowNodeRef>Sub_approval</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_notify</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_notify_procurement</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_notified</bpmn:flowNodeRef><bpmn:flowNodeRef>End_done</bpmn:flowNodeRef></bpmn:lane>
+<bpmn:lane id="Lane_finance" name="Finance"><bpmn:extensionElements><zeebe:properties><zeebe:property name="dept_id" value="019a7c3e-0000-7000-8000-0000000d0002"/></zeebe:properties></bpmn:extensionElements><bpmn:flowNodeRef>Task_review</bpmn:flowNodeRef><bpmn:flowNodeRef>Boundary_withdrawn</bpmn:flowNodeRef><bpmn:flowNodeRef>End_withdrawn</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_review</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_split</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_store</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_send_rfq</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_receive_quote</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway_join</bpmn:flowNodeRef><bpmn:flowNodeRef>Call_legal</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_record_rejection</bpmn:flowNodeRef><bpmn:flowNodeRef>End_rejected</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_notify_finance</bpmn:flowNodeRef></bpmn:lane>
+</bpmn:laneSet>
+<bpmn:startEvent id="Start_request" name="Request raised"><bpmn:outgoing>Flow_start</bpmn:outgoing></bpmn:startEvent>
+<bpmn:userTask id="Task_prepare" name="Prepare request"><bpmn:extensionElements><zeebe:taskDefinition type="prep"/><zeebe:assignmentDefinition candidateGroups="preparator" candidateUsers="019a7c3e-0000-7000-8000-000000000001"/></bpmn:extensionElements><bpmn:incoming>Flow_start</bpmn:incoming><bpmn:incoming>Flow_reject</bpmn:incoming><bpmn:outgoing>Flow_to_review</bpmn:outgoing></bpmn:userTask>
+<bpmn:boundaryEvent id="Boundary_chase" name="48 hours" attachedToRef="Task_prepare" cancelActivity="false"><bpmn:outgoing>Flow_chase</bpmn:outgoing><bpmn:timerEventDefinition id="Timer_chase"><bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT48H</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+<bpmn:userTask id="Task_chase" name="Chase preparer"><bpmn:extensionElements><zeebe:taskDefinition type="prep"/><zeebe:assignmentDefinition candidateGroups="preparator" candidateUsers="019a7c3e-0000-7000-8000-000000000001"/></bpmn:extensionElements><bpmn:incoming>Flow_chase</bpmn:incoming><bpmn:outgoing>Flow_chased</bpmn:outgoing></bpmn:userTask>
+<bpmn:endEvent id="End_chased" name="Chased"><bpmn:incoming>Flow_chased</bpmn:incoming></bpmn:endEvent>
+<bpmn:userTask id="Task_review" name="Review request"><bpmn:extensionElements><zeebe:taskDefinition type="review"/><zeebe:assignmentDefinition candidateGroups="reviewer" candidateUsers="019a7c3e-0000-7000-8000-000000000002"/></bpmn:extensionElements><bpmn:incoming>Flow_to_review</bpmn:incoming><bpmn:outgoing>Flow_to_gateway</bpmn:outgoing></bpmn:userTask>
+<bpmn:boundaryEvent id="Boundary_withdrawn" name="Withdrawn" attachedToRef="Task_review"><bpmn:outgoing>Flow_withdrawn</bpmn:outgoing><bpmn:messageEventDefinition id="MsgDef_withdrawn" messageRef="Message_withdrawn"/></bpmn:boundaryEvent>
+<bpmn:endEvent id="End_withdrawn" name="Withdrawn"><bpmn:incoming>Flow_withdrawn</bpmn:incoming></bpmn:endEvent>
+<bpmn:exclusiveGateway id="Gateway_review" name="Accepted?"><bpmn:incoming>Flow_to_gateway</bpmn:incoming><bpmn:outgoing>Flow_accept</bpmn:outgoing><bpmn:outgoing>Flow_reject</bpmn:outgoing></bpmn:exclusiveGateway>
+<bpmn:parallelGateway id="Gateway_split"><bpmn:incoming>Flow_accept</bpmn:incoming><bpmn:outgoing>Flow_to_store</bpmn:outgoing><bpmn:outgoing>Flow_to_rfq</bpmn:outgoing></bpmn:parallelGateway>
+<bpmn:serviceTask id="Task_store" name="Store request"><bpmn:extensionElements><zeebe:taskDefinition type="connector:storage"/><zeebe:ioMapping><zeebe:input source="aws-s3" target="provider"/><zeebe:input source="eu-west-1" target="region"/><zeebe:input source="upload" target="operation"/><zeebe:input source="purchase-requests" target="bucket"/><zeebe:input source="=request_id" target="key"/><zeebe:input source="=request_document" target="content"/><zeebe:output source="contentRef" target="stored_document"/></zeebe:ioMapping></bpmn:extensionElements><bpmn:incoming>Flow_to_store</bpmn:incoming><bpmn:outgoing>Flow_store_done</bpmn:outgoing></bpmn:serviceTask>
+<bpmn:sendTask id="Task_send_rfq" name="Send RFQ" messageRef="Message_rfq"><bpmn:incoming>Flow_to_rfq</bpmn:incoming><bpmn:outgoing>Flow_to_quote</bpmn:outgoing></bpmn:sendTask>
+<bpmn:receiveTask id="Task_receive_quote" name="Receive quote" messageRef="Message_quote"><bpmn:incoming>Flow_to_quote</bpmn:incoming><bpmn:outgoing>Flow_quote_done</bpmn:outgoing></bpmn:receiveTask>
+<bpmn:parallelGateway id="Gateway_join"><bpmn:incoming>Flow_store_done</bpmn:incoming><bpmn:incoming>Flow_quote_done</bpmn:incoming><bpmn:outgoing>Flow_to_legal</bpmn:outgoing></bpmn:parallelGateway>
+<bpmn:callActivity id="Call_legal" name="Legal check"><bpmn:extensionElements><zeebe:calledElement processId="Legal_check" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source='{"Legal_review":"019a7c3e-0000-7000-8000-000000000003"}' target="Assignees"/></zeebe:ioMapping></bpmn:extensionElements><bpmn:incoming>Flow_to_legal</bpmn:incoming><bpmn:outgoing>Flow_to_approval</bpmn:outgoing></bpmn:callActivity>
+<bpmn:subProcess id="Sub_approval" name="Approval"><bpmn:incoming>Flow_to_approval</bpmn:incoming><bpmn:outgoing>Flow_to_notify</bpmn:outgoing>
+<bpmn:startEvent id="Sub_start"><bpmn:outgoing>Flow_sub_start</bpmn:outgoing></bpmn:startEvent>
+<bpmn:userTask id="Task_approve" name="Approve request"><bpmn:extensionElements><zeebe:taskDefinition type="approve"/><zeebe:assignmentDefinition candidateGroups="approver" candidateUsers="019a7c3e-0000-7000-8000-000000000004"/></bpmn:extensionElements><bpmn:incoming>Flow_sub_start</bpmn:incoming><bpmn:outgoing>Flow_sub_end</bpmn:outgoing></bpmn:userTask>
+<bpmn:endEvent id="Sub_end"><bpmn:incoming>Flow_sub_end</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="Flow_sub_start" sourceRef="Sub_start" targetRef="Task_approve"/><bpmn:sequenceFlow id="Flow_sub_end" sourceRef="Task_approve" targetRef="Sub_end"/>
+</bpmn:subProcess>
+<bpmn:boundaryEvent id="Boundary_rejected" name="Rejected" attachedToRef="Sub_approval"><bpmn:outgoing>Flow_rejected</bpmn:outgoing><bpmn:errorEventDefinition id="ErrDef_rejected" errorRef="Error_rejected"/></bpmn:boundaryEvent>
+<bpmn:userTask id="Task_record_rejection" name="Record rejection"><bpmn:extensionElements><zeebe:taskDefinition type="prep"/><zeebe:assignmentDefinition candidateGroups="preparator" candidateUsers="019a7c3e-0000-7000-8000-000000000001"/></bpmn:extensionElements><bpmn:incoming>Flow_rejected</bpmn:incoming><bpmn:outgoing>Flow_rejection_recorded</bpmn:outgoing></bpmn:userTask>
+<bpmn:endEvent id="End_rejected" name="Rejected"><bpmn:incoming>Flow_rejection_recorded</bpmn:incoming></bpmn:endEvent>
+<bpmn:inclusiveGateway id="Gateway_notify"><bpmn:incoming>Flow_to_notify</bpmn:incoming><bpmn:outgoing>Flow_notify_procurement</bpmn:outgoing><bpmn:outgoing>Flow_notify_finance</bpmn:outgoing></bpmn:inclusiveGateway>
+<bpmn:userTask id="Task_notify_procurement" name="Confirm order (Procurement)"><bpmn:extensionElements><zeebe:taskDefinition type="prep"/><zeebe:assignmentDefinition candidateGroups="preparator" candidateUsers="019a7c3e-0000-7000-8000-000000000001"/></bpmn:extensionElements><bpmn:incoming>Flow_notify_procurement</bpmn:incoming><bpmn:outgoing>Flow_procurement_notified</bpmn:outgoing></bpmn:userTask>
+<bpmn:userTask id="Task_notify_finance" name="Confirm budget (Finance)"><bpmn:extensionElements><zeebe:taskDefinition type="prep"/><zeebe:assignmentDefinition candidateGroups="preparator" candidateUsers="019a7c3e-0000-7000-8000-000000000002"/></bpmn:extensionElements><bpmn:incoming>Flow_notify_finance</bpmn:incoming><bpmn:outgoing>Flow_finance_notified</bpmn:outgoing></bpmn:userTask>
+<bpmn:inclusiveGateway id="Gateway_notified"><bpmn:incoming>Flow_procurement_notified</bpmn:incoming><bpmn:incoming>Flow_finance_notified</bpmn:incoming><bpmn:outgoing>Flow_done</bpmn:outgoing></bpmn:inclusiveGateway>
+<bpmn:endEvent id="End_done" name="Ordered"><bpmn:incoming>Flow_done</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="Flow_start" sourceRef="Start_request" targetRef="Task_prepare"/><bpmn:sequenceFlow id="Flow_to_review" sourceRef="Task_prepare" targetRef="Task_review"/><bpmn:sequenceFlow id="Flow_chase" sourceRef="Boundary_chase" targetRef="Task_chase"/><bpmn:sequenceFlow id="Flow_chased" sourceRef="Task_chase" targetRef="End_chased"/><bpmn:sequenceFlow id="Flow_withdrawn" sourceRef="Boundary_withdrawn" targetRef="End_withdrawn"/><bpmn:sequenceFlow id="Flow_to_gateway" sourceRef="Task_review" targetRef="Gateway_review"/><bpmn:sequenceFlow id="Flow_accept" sourceRef="Gateway_review" targetRef="Gateway_split"/><bpmn:sequenceFlow id="Flow_reject" sourceRef="Gateway_review" targetRef="Task_prepare"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= decision = "reject"</bpmn:conditionExpression></bpmn:sequenceFlow><bpmn:sequenceFlow id="Flow_to_store" sourceRef="Gateway_split" targetRef="Task_store"/><bpmn:sequenceFlow id="Flow_to_rfq" sourceRef="Gateway_split" targetRef="Task_send_rfq"/><bpmn:sequenceFlow id="Flow_to_quote" sourceRef="Task_send_rfq" targetRef="Task_receive_quote"/><bpmn:sequenceFlow id="Flow_store_done" sourceRef="Task_store" targetRef="Gateway_join"/><bpmn:sequenceFlow id="Flow_quote_done" sourceRef="Task_receive_quote" targetRef="Gateway_join"/><bpmn:sequenceFlow id="Flow_to_legal" sourceRef="Gateway_join" targetRef="Call_legal"/><bpmn:sequenceFlow id="Flow_to_approval" sourceRef="Call_legal" targetRef="Sub_approval"/><bpmn:sequenceFlow id="Flow_rejected" sourceRef="Boundary_rejected" targetRef="Task_record_rejection"/><bpmn:sequenceFlow id="Flow_rejection_recorded" sourceRef="Task_record_rejection" targetRef="End_rejected"/><bpmn:sequenceFlow id="Flow_to_notify" sourceRef="Sub_approval" targetRef="Gateway_notify"/><bpmn:sequenceFlow id="Flow_notify_procurement" sourceRef="Gateway_notify" targetRef="Task_notify_procurement"/><bpmn:sequenceFlow id="Flow_notify_finance" sourceRef="Gateway_notify" targetRef="Task_notify_finance"/><bpmn:sequenceFlow id="Flow_procurement_notified" sourceRef="Task_notify_procurement" targetRef="Gateway_notified"/><bpmn:sequenceFlow id="Flow_finance_notified" sourceRef="Task_notify_finance" targetRef="Gateway_notified"/><bpmn:sequenceFlow id="Flow_done" sourceRef="Gateway_notified" targetRef="End_done"/>
+<bpmn:dataStoreReference id="Store_archive" name="Request archive"/>
+<bpmn:textAnnotation id="Note_review"><bpmn:text>Reviewer sets decision = "reject" to send back</bpmn:text></bpmn:textAnnotation>
+<bpmn:association id="Assoc_note" sourceRef="Note_review" targetRef="Gateway_review"/>
+</bpmn:process>
+<bpmn:process id="Supplier_party" name="Supplier" isExecutable="false">
+<bpmn:extensionElements><zeebe:properties><zeebe:property name="ignore" value="true"/></zeebe:properties></bpmn:extensionElements>
+<bpmn:startEvent id="Supplier_start" name="RFQ received"><bpmn:outgoing>Flow_supplier_1</bpmn:outgoing></bpmn:startEvent>
+<bpmn:sendTask id="Supplier_send_quote" name="Send quote"><bpmn:incoming>Flow_supplier_1</bpmn:incoming><bpmn:outgoing>Flow_supplier_2</bpmn:outgoing></bpmn:sendTask>
+<bpmn:endEvent id="Supplier_end"><bpmn:incoming>Flow_supplier_2</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="Flow_supplier_1" sourceRef="Supplier_start" targetRef="Supplier_send_quote"/><bpmn:sequenceFlow id="Flow_supplier_2" sourceRef="Supplier_send_quote" targetRef="Supplier_end"/>
+</bpmn:process>
+<bpmn:process id="Legal_check" name="Legal Check" isExecutable="false">
+<bpmn:laneSet id="LaneSet_legal"><bpmn:lane id="Lane_checker" name="Checker"><bpmn:flowNodeRef>Legal_start</bpmn:flowNodeRef><bpmn:flowNodeRef>Legal_review</bpmn:flowNodeRef><bpmn:flowNodeRef>Legal_end</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+<bpmn:startEvent id="Legal_start"><bpmn:outgoing>Flow_legal_1</bpmn:outgoing></bpmn:startEvent>
+<bpmn:userTask id="Legal_review" name="Legal review"><bpmn:extensionElements><zeebe:taskDefinition type="review"/><zeebe:assignmentDefinition candidateGroups="reviewer"/></bpmn:extensionElements><bpmn:incoming>Flow_legal_1</bpmn:incoming><bpmn:outgoing>Flow_legal_2</bpmn:outgoing></bpmn:userTask>
+<bpmn:endEvent id="Legal_end"><bpmn:incoming>Flow_legal_2</bpmn:incoming></bpmn:endEvent>
+<bpmn:sequenceFlow id="Flow_legal_1" sourceRef="Legal_start" targetRef="Legal_review"/><bpmn:sequenceFlow id="Flow_legal_2" sourceRef="Legal_review" targetRef="Legal_end"/>
+</bpmn:process>
+<bpmndi:BPMNDiagram id="Diagram_purchase"><bpmndi:BPMNPlane id="Plane_purchase" bpmnElement="Collaboration_purchase">
+<bpmndi:BPMNShape id="P_purchase_di" bpmnElement="P_purchase" isHorizontal="true"><dc:Bounds x="150" y="80" width="2330" height="520"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Lane_procurement_di" bpmnElement="Lane_procurement" isHorizontal="true"><dc:Bounds x="180" y="80" width="2300" height="260"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Lane_finance_di" bpmnElement="Lane_finance" isHorizontal="true"><dc:Bounds x="180" y="340" width="2300" height="260"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="P_supplier_di" bpmnElement="P_supplier" isHorizontal="true"><dc:Bounds x="150" y="660" width="2330" height="260"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="P_legal_di" bpmnElement="P_legal" isHorizontal="true"><dc:Bounds x="150" y="980" width="2330" height="260"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Lane_checker_di" bpmnElement="Lane_checker" isHorizontal="true"><dc:Bounds x="180" y="980" width="2300" height="260"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Start_request_di" bpmnElement="Start_request"><dc:Bounds x="272" y="192" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_prepare_di" bpmnElement="Task_prepare"><dc:Bounds x="380" y="170" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Boundary_chase_di" bpmnElement="Boundary_chase"><dc:Bounds x="432" y="232" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_chase_di" bpmnElement="Task_chase"><dc:Bounds x="520" y="255" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="End_chased_di" bpmnElement="End_chased"><dc:Bounds x="692" y="277" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_review_di" bpmnElement="Task_review"><dc:Bounds x="520" y="430" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Boundary_withdrawn_di" bpmnElement="Boundary_withdrawn"><dc:Bounds x="572" y="492" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="End_withdrawn_di" bpmnElement="End_withdrawn"><dc:Bounds x="692" y="542" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Gateway_review_di" bpmnElement="Gateway_review"><dc:Bounds x="685" y="445" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Gateway_split_di" bpmnElement="Gateway_split"><dc:Bounds x="825" y="445" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_store_di" bpmnElement="Task_store"><dc:Bounds x="940" y="370" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_send_rfq_di" bpmnElement="Task_send_rfq"><dc:Bounds x="940" y="490" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_receive_quote_di" bpmnElement="Task_receive_quote"><dc:Bounds x="1080" y="490" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Gateway_join_di" bpmnElement="Gateway_join"><dc:Bounds x="1245" y="445" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Call_legal_di" bpmnElement="Call_legal"><dc:Bounds x="1360" y="430" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Sub_approval_di" bpmnElement="Sub_approval" isExpanded="true"><dc:Bounds x="1490" y="130" width="440" height="160"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Sub_start_di" bpmnElement="Sub_start"><dc:Bounds x="1520" y="192" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_approve_di" bpmnElement="Task_approve"><dc:Bounds x="1660" y="170" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Sub_end_di" bpmnElement="Sub_end"><dc:Bounds x="1864" y="192" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Boundary_rejected_di" bpmnElement="Boundary_rejected"><dc:Bounds x="1850" y="272" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_record_rejection_di" bpmnElement="Task_record_rejection"><dc:Bounds x="1780" y="390" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="End_rejected_di" bpmnElement="End_rejected"><dc:Bounds x="1952" y="412" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Gateway_notify_di" bpmnElement="Gateway_notify"><dc:Bounds x="1945" y="185" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_notify_procurement_di" bpmnElement="Task_notify_procurement"><dc:Bounds x="2060" y="170" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Task_notify_finance_di" bpmnElement="Task_notify_finance"><dc:Bounds x="2060" y="490" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Gateway_notified_di" bpmnElement="Gateway_notified"><dc:Bounds x="2225" y="185" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="End_done_di" bpmnElement="End_done"><dc:Bounds x="2372" y="192" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Store_archive_di" bpmnElement="Store_archive"><dc:Bounds x="965" y="350" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Note_review_di" bpmnElement="Note_review"><dc:Bounds x="640" y="360" width="160" height="40"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Supplier_start_di" bpmnElement="Supplier_start"><dc:Bounds x="972" y="772" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Supplier_send_quote_di" bpmnElement="Supplier_send_quote"><dc:Bounds x="1080" y="750" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Supplier_end_di" bpmnElement="Supplier_end"><dc:Bounds x="1252" y="772" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Legal_start_di" bpmnElement="Legal_start"><dc:Bounds x="1252" y="1092" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Legal_review_di" bpmnElement="Legal_review"><dc:Bounds x="1360" y="1070" width="100" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="Legal_end_di" bpmnElement="Legal_end"><dc:Bounds x="1532" y="1092" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNEdge id="Flow_start_di" bpmnElement="Flow_start"><di:waypoint x="308" y="210"/><di:waypoint x="380" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_review_di" bpmnElement="Flow_to_review"><di:waypoint x="480" y="210"/><di:waypoint x="500" y="210"/><di:waypoint x="500" y="470"/><di:waypoint x="520" y="470"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_chase_di" bpmnElement="Flow_chase"><di:waypoint x="450" y="268"/><di:waypoint x="450" y="295"/><di:waypoint x="520" y="295"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_chased_di" bpmnElement="Flow_chased"><di:waypoint x="620" y="295"/><di:waypoint x="692" y="295"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_withdrawn_di" bpmnElement="Flow_withdrawn"><di:waypoint x="590" y="528"/><di:waypoint x="590" y="560"/><di:waypoint x="692" y="560"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_gateway_di" bpmnElement="Flow_to_gateway"><di:waypoint x="620" y="470"/><di:waypoint x="685" y="470"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_accept_di" bpmnElement="Flow_accept"><di:waypoint x="735" y="470"/><di:waypoint x="825" y="470"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_reject_di" bpmnElement="Flow_reject"><di:waypoint x="710" y="445"/><di:waypoint x="710" y="140"/><di:waypoint x="430" y="140"/><di:waypoint x="430" y="170"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_store_di" bpmnElement="Flow_to_store"><di:waypoint x="875" y="470"/><di:waypoint x="908" y="470"/><di:waypoint x="908" y="410"/><di:waypoint x="940" y="410"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_rfq_di" bpmnElement="Flow_to_rfq"><di:waypoint x="875" y="470"/><di:waypoint x="908" y="470"/><di:waypoint x="908" y="530"/><di:waypoint x="940" y="530"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_quote_di" bpmnElement="Flow_to_quote"><di:waypoint x="1040" y="530"/><di:waypoint x="1080" y="530"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_store_done_di" bpmnElement="Flow_store_done"><di:waypoint x="1040" y="410"/><di:waypoint x="1142" y="410"/><di:waypoint x="1142" y="470"/><di:waypoint x="1245" y="470"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_quote_done_di" bpmnElement="Flow_quote_done"><di:waypoint x="1180" y="530"/><di:waypoint x="1212" y="530"/><di:waypoint x="1212" y="470"/><di:waypoint x="1245" y="470"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_legal_di" bpmnElement="Flow_to_legal"><di:waypoint x="1295" y="470"/><di:waypoint x="1360" y="470"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_approval_di" bpmnElement="Flow_to_approval"><di:waypoint x="1460" y="470"/><di:waypoint x="1475" y="470"/><di:waypoint x="1475" y="210"/><di:waypoint x="1490" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_rejected_di" bpmnElement="Flow_rejected"><di:waypoint x="1868" y="308"/><di:waypoint x="1868" y="430"/><di:waypoint x="1780" y="430"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_rejection_recorded_di" bpmnElement="Flow_rejection_recorded"><di:waypoint x="1880" y="430"/><di:waypoint x="1952" y="430"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_to_notify_di" bpmnElement="Flow_to_notify"><di:waypoint x="1930" y="210"/><di:waypoint x="1945" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_notify_procurement_di" bpmnElement="Flow_notify_procurement"><di:waypoint x="1995" y="210"/><di:waypoint x="2060" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_notify_finance_di" bpmnElement="Flow_notify_finance"><di:waypoint x="1995" y="210"/><di:waypoint x="2028" y="210"/><di:waypoint x="2028" y="530"/><di:waypoint x="2060" y="530"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_procurement_notified_di" bpmnElement="Flow_procurement_notified"><di:waypoint x="2160" y="210"/><di:waypoint x="2225" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_finance_notified_di" bpmnElement="Flow_finance_notified"><di:waypoint x="2160" y="530"/><di:waypoint x="2192" y="530"/><di:waypoint x="2192" y="210"/><di:waypoint x="2225" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_done_di" bpmnElement="Flow_done"><di:waypoint x="2275" y="210"/><di:waypoint x="2372" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_sub_start_di" bpmnElement="Flow_sub_start"><di:waypoint x="1556" y="210"/><di:waypoint x="1660" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_sub_end_di" bpmnElement="Flow_sub_end"><di:waypoint x="1760" y="210"/><di:waypoint x="1864" y="210"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_supplier_1_di" bpmnElement="Flow_supplier_1"><di:waypoint x="1008" y="790"/><di:waypoint x="1080" y="790"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_supplier_2_di" bpmnElement="Flow_supplier_2"><di:waypoint x="1180" y="790"/><di:waypoint x="1252" y="790"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_legal_1_di" bpmnElement="Flow_legal_1"><di:waypoint x="1288" y="1110"/><di:waypoint x="1360" y="1110"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Flow_legal_2_di" bpmnElement="Flow_legal_2"><di:waypoint x="1460" y="1110"/><di:waypoint x="1532" y="1110"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="MsgFlow_rfq_di" bpmnElement="MsgFlow_rfq"><di:waypoint x="990" y="570"/><di:waypoint x="990" y="671"/><di:waypoint x="990" y="671"/><di:waypoint x="990" y="772"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="MsgFlow_quote_di" bpmnElement="MsgFlow_quote"><di:waypoint x="1130" y="750"/><di:waypoint x="1130" y="660"/><di:waypoint x="1130" y="660"/><di:waypoint x="1130" y="570"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="Assoc_note_di" bpmnElement="Assoc_note"><di:waypoint x="720" y="400"/><di:waypoint x="710" y="470"/></bpmndi:BPMNEdge>
+</bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

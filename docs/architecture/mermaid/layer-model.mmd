@@ -1,0 +1,50 @@
+graph TD
+    subgraph app["app/ — composition root"]
+        entry["bootstrap/main.tsx and remote.ts"]
+        routes["routes/App.tsx\n./App for the shell"]
+        providers["providers/WorkflowProvider\nQuery cache and reducer"]
+        layouts["layouts/AppShellLayout"]
+    end
+
+    subgraph presentation["presentation/"]
+        pages["pages/\nlist, detail, editor, modules, starters"]
+        editor["features/editor\ncanvas, palette, properties"]
+        state["state/studioUi\nfilters, diagram, diff"]
+    end
+
+    subgraph application["application/"]
+        commands["commands/reducer"]
+        queries["queries/"]
+        usecases["use-cases/\neditDiagram, catalogueActions"]
+    end
+
+    subgraph domain["domain/"]
+        entities["entities"]
+        rules["rules/diagram and validation"]
+        port["repositories/StudioRepository"]
+    end
+
+    subgraph infrastructure["infrastructure/"]
+        store["storage/studioStore"]
+        telemetry["telemetry/metrics"]
+    end
+
+    subgraph sdk["frontend-sdk, shared with the shell"]
+        sdkmods["storage, i18n, authz, metrics, react"]
+    end
+
+    entry --> routes
+    routes --> layouts
+    routes --> pages
+    layouts --> providers
+    pages --> editor
+    pages --> state
+    pages --> queries
+    pages --> usecases
+    providers --> commands
+    providers --> store
+    commands --> rules
+    commands --> entities
+    store --> port
+    store --> sdkmods
+    telemetry --> sdkmods

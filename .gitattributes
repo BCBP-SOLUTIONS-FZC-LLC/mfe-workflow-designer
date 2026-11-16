@@ -1,0 +1,5 @@
+.github/workflows/** text eol=lf
+.githooks/** text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+nginx/** text eol=lf
